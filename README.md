@@ -247,21 +247,21 @@ student's performance.
 │                                                          │
 │                    THE QUIZ CYCLE                        │
 │                                                          │
-│   ┌──────────┐     ┌──────────┐     ┌──────────┐       │
-│   │          │     │          │     │          │       │
-│   │  SELECT  │────▶│ GENERATE │────▶│ STUDENT  │       │
-│   │  CONCEPT │     │ QUESTION │     │ ANSWERS  │       │
-│   │          │     │          │     │          │       │
-│   └──────────┘     └──────────┘     └────┬─────┘       │
-│        ▲                                  │             │
-│        │                                  ▼             │
-│        │          ┌──────────┐     ┌──────────┐        │
-│        │          │          │     │          │        │
-│        └──────────│  UPDATE  │◀────│ EVALUATE │        │
-│                   │ MEMORY   │     │  ANSWER  │        │
-│                   │  MODEL   │     │          │        │
-│                   │          │     │          │        │
-│                   └──────────┘     └──────────┘        │
+│   ┌──────────┐     ┌──────────┐     ┌──────────┐         │
+│   │          │     │          │     │          │         │
+│   │  SELECT  │────▶│ GENERATE │────▶│ STUDENT │         │
+│   │  CONCEPT │     │ QUESTION │     │ ANSWERS  │         │
+│   │          │     │          │     │          │         │
+│   └──────────┘     └──────────┘     └────┬─────┘         │
+│        ▲                                  │              │
+│        │                                  ▼              │
+│        │          ┌──────────┐     ┌──────────┐          │
+│        │          │          │     │          │          │
+│        └──────────│  UPDATE  │◀── │ EVALUATE │          │
+│                   │ MEMORY   │     │  ANSWER  │          │
+│                   │  MODEL   │     │          │          │ 
+│                   │          │     │          │          │
+│                   └──────────┘     └──────────┘          │
 │                                                          │
 │   This cycle repeats continuously during study session.  │
 │   Each cycle takes 30-60 seconds including student       │
@@ -771,8 +771,8 @@ WHAT HAPPENS:
 │   ○ Use my own API key                               │
 │     (I already have an account somewhere)            │
 │                                                      │
-│   "Not sure? The free cloud option works for          │
-│    everyone. You can change this anytime."            │
+│   "Not sure? The free cloud option works for         │
+│    everyone. You can change this anytime."           │
 │                                                      │
 └──────────────────────────────────────────────────────┘
 ```
@@ -868,4 +868,4 @@ studying. That is the standard. Nothing less is acceptable.
 ## License
 
 MIT License — free for anyone to use, modify, and distribute.
-```
+

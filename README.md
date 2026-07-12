@@ -1,871 +1,479 @@
+# ContextOS — Persistent Agentic Memory for AI
 
-# engram
-
-### An AI-Powered Study System That Knows What You're About to Forget
-
----
-
-## The Problem
-
-Students waste enormous amounts of time studying things they already know
-while neglecting what they are actually about to forget. When you open your
-notes before an exam, you have no reliable way to know which topics are solid
-in your memory and which ones are slipping away.
-
-So you either study everything equally — which is wasteful — or you study
-whatever "feels" hard — which is unreliable.
-
-Existing tools do not solve this:
-
-- **Flashcard apps** treat every card as isolated and use the same fixed
-  review intervals for every person on earth.
-- **AI tutors from the cloud** hallucinate, cost money, and have no idea
-  what YOU personally remember.
-- **Generic study apps** show dashboards but give no actionable intelligence.
-
-There is no tool that combines understanding of the content, understanding
-of how concepts depend on each other, and understanding of what this
-specific student is about to forget — all in one place.
-
-engram is that tool.
+> A persistent memory architecture that gives AI agents the ability to remember, recall, and reason across every conversation. Built on CockroachDB and AWS.
 
 ---
 
-## What engram Does
+## The Core Problem
 
-engram sits on the student's device. The student feeds it their actual
-study materials — lecture notes, textbook PDFs, slides, anything.
+Every AI conversation starts from zero. You spend 10 minutes explaining your project to an AI, close the tab, open a new one, and explain it again. You switch to another AI tool and start over. You hit the context window limit and lose half your conversation. You have dozens of sessions across multiple AI tools and none of them know what the others said.
 
-The system does not just store these materials. It:
+The context window is not just a technical limitation. It is a fundamental architectural failure in how humans interact with AI. Every conversation is an island. Every session is amnesia. Every AI tool operates in isolation.
 
-1. **Understands the content** — breaks materials into concepts and maps
-   how they relate to each other.
-2. **Models the student's memory** — predicts which concepts are about to
-   fade based on how this specific student learns and forgets.
-3. **Generates targeted quizzes** — tests the student on exactly what they
-   are weakest on, using questions built from their own materials.
-4. **Predicts exam readiness** — tells the student how prepared they are
-   and gives a prioritized study plan before the exam.
+**The consequences are real and measurable:**
 
-The student does not need to organize anything. They do not need to make
-flashcards. They drop in their materials, pick a chapter, and start
-studying within seconds.
+- **Students** re-paste lecture notes and study context every time they start a new AI session. A student studying machine learning might explain their project requirements on Monday, lose that conversation, and start over on Tuesday. By Friday, they have five disconnected sessions with no continuity. The AI cannot see the learning arc. It cannot build on prior understanding. Every session treats the student as a stranger.
+
+- **Developers** re-explain codebases to AI tools every time they need help. The first 5 minutes of every AI interaction are spent explaining the architecture, the tech stack, the recent decisions, and the current blockers. Across a week, this adds up to hours of wasted context management.
+
+- **Researchers** lose the thread of their investigation when sessions expire. A researcher exploring a hypothesis across multiple AI conversations cannot maintain a coherent line of reasoning. Each conversation is an island. The AI cannot see the full picture.
+
+- **Teams** using AI tools have no shared knowledge base. Each team member builds their own context from scratch. Institutional knowledge that could be captured and shared is lost between sessions and between people.
+
+The result: users spend more time managing context than getting value from AI. Developers re-explain codebases. Students re-paste notes. Professionals repeat the same project brief across tools. The AI is powerful but amnesiac.
 
 ---
 
-## How It Works — The Full Journey
+## The Solution
 
-### Stage 1: Upload
+ContextOS introduces a **persistent memory layer** that sits between the user and any AI system. It is not an AI model. It does not generate responses. It does not replace ChatGPT, Claude, Gemini, or any model. It is a memory system that makes every AI model smarter by giving it persistent, relevant, curated context.
 
-The student drops their materials into the app. A PDF, a set of lecture
-notes, slides, or pasted text.
+**How it works, in one sentence:** The user talks. The system extracts and remembers. The AI receives relevant memories. Conversations compound instead of resetting.
 
-The system does NOT process the entire document immediately. Instead, it
-performs a quick structural scan — reads the table of contents, identifies
-chapter boundaries, headings, and sections — and presents the student with
-a map of their materials.
-
-A 400-page textbook is scanned in 10-15 seconds. The student sees:
-
-    "Your book has 56 chapters. Which one do you want to study?"
-
-The student is never blocked. They are never asked to wait. They pick a
-chapter and start within seconds.
-
-```
-┌──────────────────────────────────────────────────────────┐
-│                                                          │
-│   Student drops PDF into the app                         │
-│                                                          │
-│                    │                                     │
-│                    ▼                                     │
-│   ┌──────────────────────────────────┐                   │
-│   │     QUICK STRUCTURAL SCAN        │                   │
-│   │                                  │                   │
-│   │   Reads table of contents        │                   │
-│   │   Identifies chapter boundaries  │                   │
-│   │   Maps page numbers to chapters  │                   │
-│   │                                  │                   │
-│   │   Time: 10-15 seconds            │                   │
-│   └────────────────┬─────────────────┘                   │
-│                    │                                     │
-│                    ▼                                     │
-│   ┌──────────────────────────────────┐                   │
-│   │     STUDENT SEES CHAPTER LIST    │                   │
-│   │                                  │                   │
-│   │   Chapter 1: The Chemistry       │                   │
-│   │     of Life                      │                   │
-│   │   Chapter 2: Chemical Context    │                   │
-│   │     of Life                      │                   │
-│   │   ...                            │                   │
-│   │   Chapter 12: The Cell Cycle     │  ◄── Student      │
-│   │   ...                            │       picks this  │
-│   │   Chapter 56: Ecology            │                   │
-│   │                                  │                   │
-│   └──────────────────────────────────┘                   │
-│                                                          │
-└──────────────────────────────────────────────────────────┘
-```
-
-### Stage 2: Chapter Processing
-
-When the student picks a chapter, the system processes ONLY that chapter.
-Not the whole book. Just the 25-30 pages the student needs right now.
-
-Processing means three things happen:
-
-**First — Text Extraction and Chunking**
-
-The chapter's text is read and split into small meaningful pieces. Each
-piece is roughly one self-contained idea — a definition, an explanation,
-an example, a process description. The system respects natural boundaries
-like paragraphs and sections rather than cutting text arbitrarily.
-
-A typical chapter becomes 150-250 chunks.
-
-**Second — Concept Identification**
-
-The system scans the chunks to find key concepts. It identifies them
-through multiple signals:
-
-- Words in bold or italics
-- Terms in headings and subheadings
-- Sentences that follow definition patterns ("X is defined as...",
-  "X refers to...", "The process of X occurs when...")
-- Terms that appear in the chapter's review questions
-- Words that are repeated frequently with explanatory context
-
-A typical chapter yields 30-60 key concepts.
-
-**Third — Relationship Mapping**
-
-The system figures out how concepts in this chapter relate to each other.
-It does this by looking at:
-
-- Which concepts appear together in the same chunk
-- Explicit references ("as discussed in the previous section...")
-- Contrast language ("unlike X, Y does not require...")
-- Dependency signals ("to understand X, one must first know Y")
-- Cause and effect language ("X leads to Y", "X is caused by Y")
-
-This creates a local knowledge map for the chapter.
-
-**The entire processing of one chapter takes 5-10 seconds.**
-
-While it happens, the student is already seeing the list of topics in the
-chapter and can choose which area to focus on. By the time they make their
-selection, processing is complete.
-
-```
-┌──────────────────────────────────────────────────────────┐
-│                                                          │
-│   Student picks Chapter 12: The Cell Cycle               │
-│                                                          │
-│                    │                                     │
-│                    ▼                                     │
-│   ┌──────────────────────────────────┐                   │
-│   │     PROCESS THIS CHAPTER ONLY    │                   │
-│   │                                  │                   │
-│   │   Extract text (25-30 pages)     │                   │
-│   │   Split into chunks (150-250)    │                   │
-│   │   Identify concepts (30-60)      │                   │
-│   │   Map relationships              │                   │
-│   │                                  │                   │
-│   │   Time: 5-10 seconds             │                   │
-│   └────────────────┬─────────────────┘                   │
-│                    │                                     │
-│                    ▼                                     │
-│   ┌──────────────────────────────────┐                   │
-│   │     CHAPTER IS READY             │                   │
-│   │                                  │                   │
-│   │   47 key concepts identified     │                   │
-│   │   12 concept relationships found │                   │
-│   │   4 concept clusters detected    │                   │
-│   │                                  │                   │
-│   │   "Ready to start studying."     │                   │
-│   └──────────────────────────────────┘                   │
-│                                                          │
-│   Total time from upload to studying: 30-40 seconds      │
-│                                                          │
-└──────────────────────────────────────────────────────────┘
-```
-
-### Stage 3: Studying Through Quizzes
-
-The student does not just read their notes through the tool. The tool
-tests them. This is where the real learning happens.
-
-**How questions are generated:**
-
-The system takes a concept and retrieves the chunks from the student's
-materials that are most relevant to that concept. It then creates
-questions that test understanding at different levels:
-
-- **Recall level:** "According to your notes, what is the function of
-  the centrosome during cell division?"
-- **Understanding level:** "Your notes describe both mitosis and meiosis.
-  Explain how the outcomes differ."
-- **Application level:** "If a cell skipped the G1 checkpoint, what
-  problems could arise based on what your notes describe?"
-
-Every question is built from the student's actual materials. The system
-does not pull from general knowledge. It works only with what the student
-gave it.
-
-**How answers are evaluated:**
-
-When the student answers, the system compares their response against the
-source chunks. It checks:
-
-- Did the student include the key facts that are in the source?
-- Did they get the relationships between concepts right?
-- What did they miss that the source material covers?
-- What did they include that is NOT in the source? (noted but not
-  counted as wrong — it might be correct, but the system cannot
-  verify it from the materials provided)
-
-The student receives specific feedback: "You correctly identified the
-function of the centrosome. You missed that your notes also describe
-its role in forming the mitotic spindle — see page 294, paragraph 2."
-
-**How the system decides what to ask next:**
-
-This is not random. After each answer, the system updates its model
-of the student's knowledge and selects the next question based on:
-
-1. What the student just got wrong (immediate reinforcement)
-2. What concept is most at risk of being forgotten (memory decay)
-3. What concept is a prerequisite for other weak concepts
-   (foundational priority)
-4. What the student has not been tested on yet (coverage)
-
-The order is never the same twice. It adapts in real time to the
-student's performance.
-
-```
-┌──────────────────────────────────────────────────────────┐
-│                                                          │
-│                    THE QUIZ CYCLE                        │
-│                                                          │
-│   ┌──────────┐     ┌──────────┐     ┌──────────┐         │
-│   │          │     │          │     │          │         │
-│   │  SELECT  │────▶│ GENERATE │────▶│ STUDENT │         │
-│   │  CONCEPT │     │ QUESTION │     │ ANSWERS  │         │
-│   │          │     │          │     │          │         │
-│   └──────────┘     └──────────┘     └────┬─────┘         │
-│        ▲                                  │              │
-│        │                                  ▼              │
-│        │          ┌──────────┐     ┌──────────┐          │
-│        │          │          │     │          │          │
-│        └──────────│  UPDATE  │◀── │ EVALUATE │          │
-│                   │ MEMORY   │     │  ANSWER  │          │
-│                   │  MODEL   │     │          │          │ 
-│                   │          │     │          │          │
-│                   └──────────┘     └──────────┘          │
-│                                                          │
-│   This cycle repeats continuously during study session.  │
-│   Each cycle takes 30-60 seconds including student       │
-│   thinking time.                                         │
-│                                                          │
-└──────────────────────────────────────────────────────────┘
-```
+Every cycle enriches the memory. More conversations mean more memories. More memories mean better context injection. Better context injection means more useful AI responses. More useful responses lead to more conversations. The system compounds over time, becoming more valuable with every interaction.
 
 ---
 
-## The Three Systems That Make It Work
+## Architectural Overview
 
-engram is not one algorithm. It is three systems working together.
-Each one is useless without the other two.
+ContextOS has five layers. Each layer depends on the one below it. The user interacts with the top layer. The AI receives context from the fourth layer. Everything below the fourth layer is the memory engine, which is where the real intelligence lives.
 
-### System 1: The Knowledge Map
+**Layer 5 — User Interface:** This is what the user sees and interacts with. It includes the chat interface where the user communicates with the AI, a context window visualization that shows exactly what the AI currently knows, and a memory browser that lets the user explore, search, and manage their entire memory history.
 
-**What it is:**
+**Layer 4 — Context Injection Engine:** This is the core intelligence of ContextOS. When the user sends a message, this layer determines what the AI needs to know, retrieves the most relevant memories, scores them, assembles the optimal context block, and constructs the final prompt. This layer turns an amnesiac AI into one with perfect, curated memory.
 
-A graph of every concept in the student's materials, connected by the
-relationships between them. Think of it as a map where each city is a
-concept and each road is a relationship.
+**Layer 3 — Memory Model:** Not all memories are equally important at all times. A conversation from yesterday is more relevant than one from last month. A concept the user keeps asking about is more important than one they mentioned once. This layer tracks the strength of every memory over time, simulates forgetting, and determines which memories should be active in the current context.
 
-```
-                     ┌───────────────┐
-                     │    Cell       │
-                     │   Division    │
-                     └───────┬───────┘
-                             │
-              ┌──────────────┼──────────────┐
-              │              │              │
-              ▼              ▼              ▼
-     ┌──────────────┐ ┌────────────┐ ┌──────────────┐
-     │   Mitosis    │ │  Meiosis   │ │   Cell       │
-     │              │ │            │ │   Cycle      │
-     │              │ │            │ │   Checkpoints│
-     └──────┬───────┘ └─────┬──────┘ └──────┬───────┘
-            │               │               │
-     ┌──────┴──────┐        │        ┌──────┴──────┐
-     │             │        │        │             │
-     ▼             ▼        ▼        ▼             ▼
-┌─────────┐ ┌─────────┐ ┌──────┐ ┌───────┐ ┌──────────┐
-│Mitotic  │ │Cytokine-│ │Gamete│ │G1     │ │Tumor     │
-│Spindle  │ │sis      │ │Forma-│ │Check- │ │Suppressor│
-│Formation│ │         │ │tion  │ │point  │ │Genes     │
-└─────────┘ └─────────┘ └──────┘ └───────┘ └──────────┘
-```
+**Layer 2 — Knowledge Store:** All extracted concepts, relationships, and raw text are stored here. This layer is responsible for fast retrieval, efficient storage, and structural organization of memory. This is where CockroachDB serves as the persistent backbone, providing structured storage, vector indexing for semantic search, and the knowledge graph for relationship traversal.
 
-**Why it matters:**
-
-Without this map, the system treats every concept as independent. With
-this map, the system understands that if a student forgets "mitosis,"
-then "mitotic spindle formation" and "cytokinesis" are also at risk —
-even if the student reviewed those topics recently.
-
-This means the system can prioritize intelligently. It does not just
-ask "what is the student about to forget?" It asks "what is the student
-about to forget that will cause the most damage to everything else?"
-
-**How it builds over time:**
-
-The knowledge map starts with one chapter. As the student studies more
-chapters, the maps connect. Concepts from Chapter 7 that are
-prerequisites for Chapter 12 get linked across chapters.
-
-Eventually the student has a complete map of the entire subject — not
-because the system processed everything at once, but because the map
-grew organically as the student studied.
-
-The student can see this map. They can zoom in on a chapter or zoom
-out to see the whole subject. They can see which concepts they know
-well (highlighted green) and which are weak (highlighted red). This
-alone is valuable — most students have never seen the structure of
-what they are studying laid out visually.
+**Layer 1 — Ingestion Pipeline:** Every piece of information that enters ContextOS passes through this pipeline. Chat conversations, uploaded documents, notes, code snippets, emails, and any other text. The pipeline takes raw, unstructured text and transforms it into structured memory objects that can be stored, indexed, and retrieved.
 
 ---
 
-### System 2: The Forgetting Model
+## Layer 1: Ingestion Pipeline — How Context Enters the System
 
-**What it is:**
+### Purpose
 
-A mathematical model that predicts how strong the student's memory of
-each concept is RIGHT NOW, and how it will change over the coming days.
+The ingestion pipeline is the front door of ContextOS. Every piece of information that enters the system passes through it. Its job is to take raw, unstructured text and transform it into structured memory objects — concepts, relationships, and metadata — that can be stored, indexed, and retrieved later.
 
-Every concept the student has been tested on has a memory strength —
-a number between 0 and 100 that represents how likely the student is
-to recall it successfully.
+### Stage 1: Text Normalization
 
-```
-MEMORY STRENGTH OVER TIME
+Raw input arrives in many forms. A chat message is a single sentence. A document is thousands of words. A code snippet has syntax. A conversation has turns between user and AI. The normalization stage converts all of these into a uniform text representation, strips formatting artifacts, segments conversations into logical chunks (each chunk representing a single idea or topic), and tags each chunk with metadata: source type, timestamp, speaker, and document section.
 
-100│ ●
-   │  ╲
- 80│   ╲         ●
-   │    ╲       ╱ ╲
- 60│     ╲     ╱   ╲         ●
-   │      ╲   ╱     ╲       ╱ ╲
- 40│       ╲ ╱       ╲     ╱   ╲
-   │        ●         ╲   ╱     ╲
- 20│                    ╲ ╱       ╲
-   │                     ●         ╲
-  0│─────────────────────────────────●──────
-   Day1  Day3  Day5  Day7  Day9  Day11  Day13
+### Stage 2: Concept Extraction
 
-   ● = review happened (strength jumps back up)
-   ╲ = forgetting (strength decays over time)
+This is where the real work happens. The system applies multiple extraction methods in sequence:
 
-   Notice: each review makes the decay SLOWER.
-   The student retains longer each time.
-```
+First, linguistic analysis identifies noun chunks and named entities — people, tools, organizations, dates, and technical terms. Then, statistical phrase extraction identifies the most important multi-word phrases based on frequency and co-occurrence patterns. Finally, AI-powered validation takes these raw extractions and refines them — disambiguating terms, generating definitions, assigning importance scores, and classifying each concept by type.
 
-**How it personalizes:**
+Each extracted concept is classified into one of seven types:
 
-The model does not use generic forgetting curves. It learns THIS
-student's patterns.
+- **Problem**: something the user is trying to solve, like "context window is too small"
+- **Decision**: a choice the user made, like "switched from heuristic to AI extraction"
+- **Fact**: a piece of information, like "a model has a 1M token context"
+- **Entity**: a person, tool, or organization, like "the API", "my teammate"
+- **Event**: something that happened or will happen, like "deadline is July 31"
+- **Preference**: something the user likes or wants, like "I prefer Python over JavaScript"
+- **Code**: a code snippet, function, or architecture pattern
 
-When the student answers a question about a concept, the system
-compares the prediction against reality.
+This classification matters because it determines how the memory is used downstream. Problems inform future solutions. Decisions provide reasoning chains. Facts fill knowledge gaps. Events trigger timely reminders. Preferences personalize responses.
 
-```
-PREDICTION: Student has 60% memory strength on "mitosis."
-            Model expects a 60% chance they get it right.
+### Stage 3: Relationship Mapping
 
-REALITY:   Student got it right.
+After extraction, the system identifies relationships between concepts. If the user mentions one tool in one conversation and discusses its limitations in another, and later talks about switching to an alternative, the system infers a causal chain connecting all three.
 
-ACTION:    The model was accurate. Slightly increase confidence
-           in the model's predictions for this type of concept.
+Relationships are typed to capture different kinds of connections:
+
+- **causes**: one thing led to another
+- **part_of**: one thing is a component of another
+- **related_to**: two things are topically connected
+- **replaces**: one thing was swapped for another
+- **evolves_into**: one thing became another over time
+- **requires**: one thing depends on another
+
+These relationships form the edges of a knowledge graph. The concepts are nodes. The graph is the backbone of ContextOS's ability to retrieve relevant context, because when the user asks about a topic, the system does not just search for that topic — it follows the edges to find everything connected to it.
 
 ---
 
-PREDICTION: Student has 75% memory strength on "DNA replication."
-            Model expects a 75% chance they get it right.
+## Layer 2: Knowledge Store — Where Memory Lives
 
-REALITY:   Student got it wrong.
+### Purpose
 
-ACTION:    The model overestimated. Adjust — this student forgets
-           molecular biology concepts faster than the model predicted.
-           Future predictions for similar concepts decay faster.
-```
+All extracted concepts, relationships, and raw text are stored in the knowledge store. This layer is responsible for fast retrieval, efficient storage, and structural organization of memory. This is where CockroachDB serves as the persistent backbone.
 
-Over many quiz cycles, the model builds a picture of how THIS specific
-student's memory works across different types of concepts.
+### The Bucket System
 
-Some students retain definitions well but forget processes quickly.
-Some students forget formulas fast but remember diagrams and visual
-descriptions. The model does not need to know why — it just tracks
-the patterns.
+Each concept is stored in a bucket. Related concepts that refer to the same underlying idea are merged into the same bucket using normalized keys.
 
-**What the model produces:**
+For example, if the user mentions "context window" in one conversation, "token limit" in another, and "context length" in a third, the normalization algorithm recognizes these as the same concept and merges them into a single bucket. The bucket tracks the canonical name, all surface forms, when it was last accessed, how many times it has been accessed, and its current strength.
 
-At any moment, for every concept the student has encountered, the
-system can say:
+This merging prevents the system from treating synonymous terms as separate memories. It keeps the memory store clean and prevents redundancy from accumulating over time.
 
-```
-Mitosis                    → 82% strength  (strong, no action needed)
-Mitotic Spindle Formation  → 45% strength  (review soon)
-Cell Cycle Checkpoints     → 23% strength  (critical, review now)
-DNA Replication            → 71% strength  (okay for now)
-Meiosis                    → 38% strength  (review today)
-```
+### Vector Embeddings and Semantic Search
 
-This is not a guess. It is a prediction based on when the student
-last studied each concept, how well they performed, and their
-personal forgetting patterns learned over time.
+Beyond storing text, each concept gets a vector embedding — a numerical representation of its meaning in high-dimensional space. These embeddings enable semantic search: finding memories that are conceptually similar even when the exact words do not match.
 
----
+For instance, if the user asks "why did we change the approach?", a keyword search might miss the memory titled "switched from heuristic to AI extraction." But in embedding space, these are close together because they share semantic meaning. The vector search finds it.
 
-### System 3: The Quiz Engine
+CockroachDB provides distributed vector indexing, meaning these embeddings are indexed across the distributed database for fast similarity search. As the memory store grows from hundreds to thousands to millions of concepts, the distributed index ensures search remains fast. The embeddings and the operational data (buckets, relationships, metadata) all live in the same CockroachDB cluster, eliminating consistency gaps that would occur if you used a separate vector database alongside a separate operational database.
 
-**What it is:**
+### The Knowledge Graph
 
-The decision-making system that determines which concept to test next,
-what type of question to ask, and how to evaluate the student's answer.
+Beyond flat bucket storage, the knowledge store maintains a graph of relationships between concepts. Each concept is a node. Each relationship is an edge. The graph allows traversal: starting from any concept, the system can follow edges to find related concepts, prerequisites, consequences, and alternatives.
 
-**How it selects the next concept:**
+The knowledge graph serves three purposes:
 
-The quiz engine considers four factors and weighs them together:
+**Context expansion:** When the user asks "why did we switch to this tool?", the system finds the tool bucket, follows the "replaces" edge to the previous tool, follows the "causes" edge to the quality problems that motivated the switch, and injects all of this into the context. The user gets a complete, historically grounded answer.
 
-```
-FACTOR 1: MEMORY URGENCY
-━━━━━━━━━━━━━━━━━━━━━━━
-Which concepts are closest to being forgotten?
-A concept at 25% strength is more urgent than one at 70%.
-The system does not want the student to lose knowledge 
-they already invested time learning.
+**Gap detection:** When the AI's response references something not in the graph, the system flags it as a knowledge gap and prompts the user to provide more information. This prevents the AI from silently hallucinating context it does not have.
 
-FACTOR 2: DEPENDENCY IMPACT
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-Which concepts are prerequisites for other concepts?
-If "cell membrane structure" is weak, and three other 
-concepts depend on it, reviewing that one concept 
-strengthens everything downstream.
-This uses the knowledge map to calculate impact.
+**Contradiction detection:** When new information contradicts existing memories — for example, the user says "we are using Tool B now" but the graph contains a stored decision "switched to Tool A" — the system surfaces the conflict and asks the user to resolve it. No silent overwrites.
 
-FACTOR 3: COVERAGE
-━━━━━━━━━━━━━━━━━━
-Has the student been tested on everything in the chapter?
-Concepts the student has never been quizzed on get a 
-boost in priority — the system needs data on everything 
-to make accurate predictions.
+### Why CockroachDB
 
-FACTOR 4: RECENCY
-━━━━━━━━━━━━━━━━━
-Do not ask about the same concept twice in a row.
-Space out related concepts. If the student just answered 
-a question about mitosis, ask about something else before 
-returning to mitosis. This mirrors how effective studying 
-actually works — interleaving different topics.
-```
+CockroachDB serves as the single persistent store for all memory data: buckets, vector embeddings, relationship edges, and raw text chunks. The choice of CockroachDB over alternatives is driven by specific requirements of an agentic memory system:
 
-The engine combines these four factors into a priority score for
-every concept and picks the highest priority one.
+**Persistence across failures:** An AI agent whose memory goes offline does not degrade gracefully — it stops. CockroachDB is globally distributed and always-on. Memory survives node failures, region outages, and maintenance windows without data loss.
 
-**How it generates different question types:**
+**Unified storage:** Embeddings, structured data, and graph relationships all live in the same database. There is no separate vector store to maintain, no consistency gaps between the vector index and the operational data, and no synchronization overhead.
 
-For each concept, the system can ask at multiple difficulty levels.
-It chooses the difficulty based on the student's current memory
-strength for that concept:
+**Scalability:** The memory store grows with every conversation. What starts as hundreds of concepts becomes thousands. CockroachDB scales horizontally without re-architecture, so the memory system does not need to be rebuilt when it outgrows a single node.
 
-```
-MEMORY STRENGTH HIGH (70-100%):
-  → Ask APPLICATION or CONNECTION questions
-  → The student knows the basics, so push them to think deeper
-  → Example: "Your notes describe both G1 and G2 checkpoints.
-    What would happen if a cell passed G2 with damaged DNA?"
+**SQL for complex queries:** The context retrieval process requires joining across buckets, embeddings, and relationships in a single query. CockroachDB's full SQL support makes this possible. Graph traversal becomes SQL joins. Relevance scoring becomes computed columns. The entire retrieval logic is expressed in a single, optimizable query.
 
-MEMORY STRENGTH MEDIUM (40-70%):
-  → Ask UNDERSTANDING questions
-  → Reinforce the concept without being too easy or too hard
-  → Example: "Explain the role of cyclins in the cell cycle
-    as described in your notes."
-
-MEMORY STRENGTH LOW (0-40%):
-  → Ask RECALL questions
-  → The student may have forgotten the basics — start simple
-  → Example: "According to your notes, what are the phases 
-    of mitosis?"
-  → If they get this right, immediately follow up with a 
-    harder question to strengthen the memory more
-```
-
-**How it evaluates answers:**
-
-The evaluation is not just right or wrong. It is a detailed
-comparison between the student's answer and the source material.
-
-```
-STUDENT'S ANSWER:
-"Mitosis is cell division that produces two identical cells."
-
-SOURCE MATERIAL SAYS:
-"Mitosis is a type of cell division that results in two 
-daughter cells, each having the same number and kind of 
-chromosomes as the parent nucleus. It is typically divided 
-into four stages: prophase, metaphase, anaphase, and telophase."
-
-EVALUATION:
-  ✓ Correctly identified that mitosis produces two cells
-  ✓ Correctly identified that the cells are identical
-  ✗ Missed the detail about chromosomes matching the parent
-  ✗ Missed the four stages of mitosis
-  
-  Your answer covers the basic idea but is missing two 
-  important details from your notes.
-```
-
-The student sees exactly what they got right, what they missed,
-and where in their materials the complete answer is. They can
-tap the reference to see the original text.
+**Serializable transactions:** When multiple conversations are being ingested simultaneously, or when the user is querying while new memories are being written, CockroachDB's serializable isolation prevents memory corruption.
 
 ---
 
-## The Hallucination Problem — How It Is Solved
+## Layer 3: Memory Model — How Memory Decays and Strengthens
 
-This is the most critical design challenge. If the system generates
-wrong information, students learn wrong things. That is worse than
-having no tool at all.
+### Purpose
 
-engram uses six layers of protection:
+Not all memories are equally important at all times. A conversation from yesterday is more relevant than one from last month. A concept the user keeps asking about is more important than one they mentioned once. The memory model tracks the strength of every memory over time, simulates forgetting, and determines which memories should be active in the current context.
 
-```
-LAYER 1: SOURCE GROUNDING
-━━━━━━━━━━━━━━━━━━━━━━━━
-The AI model is NEVER asked to recall information from its 
-own training. Every task is accompanied by the relevant 
-source text from the student's materials. The model is 
-told: "Use ONLY the following text to create this question."
-It works with what is in front of it, not what it "knows."
+### The Decay Model
 
-LAYER 2: EXTRACTION OVER GENERATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-For facts, definitions, and key terms, the system extracts 
-directly from the source text rather than asking the AI to 
-generate them. If the student's notes say "ATP is the energy 
-currency of the cell," the system uses that exact fact. The 
-AI model is only used for tasks that require language 
-generation — creating questions, phrasing explanations, 
-evaluating free-form answers.
+Every memory starts with a default strength of 50%. Over time, without being accessed, its strength decays according to an exponential forgetting curve. The decay rate defaults to 0.15 per day, meaning a memory loses 15% of its remaining strength each day. This produces a curve that is steep at first — rapid forgetting in the first few days — and then flattens — long-term retention of what survives the initial decay.
 
-LAYER 3: BOUNDED GENERATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-When the AI does generate text, it operates within strict 
-boundaries. It is given a chunk of source text and a specific 
-task. It cannot introduce information from outside that chunk. 
-If the source text does not contain enough information to 
-create a meaningful question, the system moves to a different 
-chunk rather than filling the gap with the AI's own knowledge.
+Not all memories decay equally. The base decay rate is modified by importance:
 
-LAYER 4: SOURCE CITATION
-━━━━━━━━━━━━━━━━━━━━━━━━
-Every piece of output — every question, every answer 
-evaluation, every explanation — comes with a reference to 
-the exact chunk of source text it was derived from. The 
-student can always ask: "Where in my notes does it say this?" 
-and the system shows the original text. If the student cannot 
-find the referenced material, they know the system made an 
-error. The system never asks the student to trust it blindly.
+- **High-importance memories** (importance 8-10) decay slower at 0.10 per day
+- **Medium-importance memories** (importance 5-7) decay at the default rate of 0.15 per day
+- **Low-importance memories** (importance 1-4) decay faster at 0.20 per day
 
-LAYER 5: UNCERTAINTY ACKNOWLEDGMENT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-If the student asks about something that is not covered in 
-their materials, the system says so directly: "This topic is 
-not covered in the documents you provided." It does not try 
-to answer from general knowledge. It does not guess. It does 
-not fill in gaps. It is designed to say "I don't know" rather 
-than risk giving wrong information.
+Importance is assigned during extraction. A core architectural decision persists much longer than a passing mention of a tool name.
 
-LAYER 6: STUDENT VERIFICATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-The knowledge map distinguishes between relationships that are 
-explicitly stated in the source material and relationships that 
-the system inferred. Stated relationships are shown as solid 
-connections. Inferred relationships are shown as dashed 
-connections and labeled "needs your confirmation." The student 
-can confirm, reject, or edit any inferred relationship. The 
-human stays in control of the knowledge structure.
-```
+### Memory Strength Categories
 
-**Can it still make mistakes?**
+Memories are categorized by their current strength:
 
-Yes. No system is perfect. The AI might occasionally generate a
-question that subtly introduces information not in the notes, or
-it might interpret a poorly written paragraph incorrectly, or it
-might miss a nuance in the student's answer.
+- **Strong** (above 70%): Recently accessed, highly relevant. These memories are always included in context injection.
+- **Fading** (40-70%): Not accessed recently, but still above the forgetting threshold. These are included if they are relevant to the current query.
+- **Critical** (below 40%): In danger of being forgotten. These trigger proactive reminders to the user: "You have not discussed this topic in 12 days. Should I remind you of the key points?"
+- **Forgotten** (below 10%): Effectively gone from active memory. Still stored but excluded from context injection until reactivated.
 
-That is why Layer 4 (source citation) is the most important. Even
-when the system makes an error, the student can catch it by
-checking the cited source. The system is designed to be
-transparent about where every piece of information comes from,
-so errors are visible and correctable.
+### Access-Driven Strengthening
 
-The student should always think of engram as a study aid,
-not an authority. It helps them study more efficiently, but
-they are still responsible for their own learning.
+Every time a memory is accessed — included in context injection, queried by the user, or referenced in a conversation — its strength is refreshed. Frequently accessed memories stay strong indefinitely, while rarely accessed ones decay naturally. The system learns what the user cares about based on what they keep talking about.
+
+### The Forgetting Budget
+
+The system assumes a limited capacity for active context, analogous to working memory in human cognition. If the context window can hold a fixed number of memories, the system selects only the most relevant ones based on a composite score of strength, importance, and query relevance. The rest remain in storage but are not injected.
+
+This prevents a common failure mode in retrieval-augmented AI systems: injecting too much context actually degrades performance. ContextOS is selective, not exhaustive. It gives the AI exactly what it needs, and nothing more.
 
 ---
 
-## The Hardware Problem — How Every Student Can Use It
+## Layer 4: Context Injection Engine — The Core Intelligence
 
-Not every student has a powerful laptop. Many students worldwide
-have a budget phone or an old laptop with limited memory and no
-graphics card. The tool must work for them too.
+### Purpose
 
-engram handles this by splitting its work into two categories:
+This is where everything comes together. When the user sends a message, the context injection engine determines what the AI needs to know, retrieves the most relevant memories from CockroachDB, scores them, assembles the optimal context block, and constructs the final prompt.
 
-### What Always Runs on the Student's Device
+### Step 1: Query Analysis
 
-These components are lightweight and run on any hardware, even a
-budget phone:
+The user's message is analyzed to extract key terms, intent, and topic. The system identifies what the user is asking about, what domain it falls under, and what type of context would be most useful — factual background, decision history, code reference, or something else.
 
-```
-DOCUMENT SCANNING
-  Reading a PDF and identifying its structure.
-  Requires no AI model. Just text parsing.
-  Runs on anything.
+For example, if the user sends "Why did we stop using the old approach?", the query analysis identifies the key terms ("old approach," "stop using"), the intent (seeking reasoning for a past decision), the domain (the project being discussed), and the needed context type (decision history plus problem description).
 
-TEXT CHUNKING
-  Splitting text into meaningful pieces.
-  Requires no AI model. Just logic.
-  Runs on anything.
+### Step 2: Memory Retrieval — Three Parallel Searches
 
-CONCEPT EXTRACTION (Basic)
-  Finding bold words, headings, definition patterns.
-  Requires no AI model. Just text pattern matching.
-  Runs on anything. Runs instantly.
+The key terms from the query analysis are used to query the knowledge store in CockroachDB through three parallel searches:
 
-KNOWLEDGE GRAPH
-  Storing and querying concept relationships.
-  A data structure. Uses almost no memory.
-  Runs on anything.
+**Vector search:** The query is converted into an embedding and compared against all stored concept embeddings using CockroachDB's distributed vector index. This finds semantically similar memories — conceptually related even when the words do not match exactly.
 
-THE FORGETTING MODEL
-  Mathematical calculations — decay curves and predictions.
-  No neural network. Just arithmetic.
-  Uses almost no resources. Runs on anything.
+**Structured search:** Key terms are matched against bucket names, definitions, and types using text matching. This catches exact and near-exact matches that vector search might dilute.
 
-THE QUIZ SCHEDULER
-  Deciding which concept to test next.
-  Logic and scoring. No AI needed.
-  Runs on anything.
+**Graph traversal:** Starting from the directly matched buckets, the system follows knowledge graph edges stored in CockroachDB to retrieve related concepts. If the user asks about a tool, the graph leads to the problems that motivated its adoption, the alternatives that were considered, and the results that followed.
 
-THE STUDENT'S PROGRESS DATABASE
-  All quiz results, memory strengths, study history.
-  A local database file.
-  Uses minimal storage and memory.
-```
+All three searches produce a combined candidate set of memories, typically 10-30 items.
 
-### What Needs an AI Model
+### Step 3: Relevance Scoring
 
-These tasks require language understanding and generation:
+Each candidate memory receives a relevance score computed from three factors:
 
-```
-GENERATING QUESTIONS from source text
-EVALUATING free-form student answers
-CREATING EXPLANATIONS when the student is confused
-IDENTIFYING deeper concept relationships
-```
+- **Term overlap** (40% weight): How similar the memory is to the query, combining semantic similarity from vector search with keyword match from structured search. This measures topical relevance.
+- **Memory strength** (30% weight): The current strength from the decay model. This ensures that recent, frequently accessed memories are prioritized.
+- **Recency** (30% weight): How recently the memory was last accessed or created. Very recent memories receive a strong bonus.
 
-These tasks can be handled in two ways — and the student chooses
-which one works for their situation:
+The scores are normalized so that the top memories receive proportionally more weight and the total sums to a fixed value, regardless of how many candidates there are.
 
-### Option 1: Local Model
+### Step 4: Context Assembly
 
-The AI runs entirely on the student's device. No internet needed
-after setup. Complete privacy.
+The top-ranked memories (determined by the forgetting budget) are assembled into a structured context block. This block includes the memory type, date, relevant details, and connections to other memories. The block is prepended to the user's message.
 
-```
-WHO CAN USE THIS:
-  Students with 8GB+ RAM and a decent processor.
-  Most modern laptops from the last 3-4 years.
-  Not suitable for budget phones or very old laptops.
+The AI receives both the context and the question, allowing it to give a precise, historically grounded answer. The user does not need to re-explain anything. The AI already knows.
 
-HOW IT FEELS:
-  Questions generate in 5-15 seconds on a regular laptop.
-  Fast enough for a study session where you think between 
-  questions anyway. Not instant, but usable.
+### Step 5: Model Routing
 
-WHAT RUNS:
-  A language model that sits on the student's device.
-  About 4-5GB of storage space.
-  Uses RAM but not the graphics card.
-```
+ContextOS supports multiple AI backends through Amazon Bedrock. The assembled prompt is sent to whichever model the user has selected. The routing is transparent — the user does not need to know which model they are using. The context is the same regardless of the backend.
 
-### Option 2: Free API
+This is the cross-model memory feature. The user can start a conversation with one AI, switch to another for a different perspective, and both models have access to the same curated memory. The memory belongs to the user, not to any single model.
 
-The AI runs on a free cloud service. The student's device handles
-everything except the language generation step, which gets sent to
-the API for a fast response.
+### Step 6: Response Processing
 
-```
-WHO CAN USE THIS:
-  Any student with an internet connection.
-  Works on phones, tablets, old laptops, anything.
-  The student just needs to create a free account once.
+When the AI responds, ContextOS performs two operations:
 
-HOW IT FEELS:
-  Questions generate in 1-2 seconds. Feels instant.
-  The fastest possible experience.
+**Display:** The response is shown to the user, along with a visual indicator of which memories were injected, so the user can see what the AI "knows."
 
-WHAT HAPPENS:
-  The student's device does all the lightweight work locally.
-  When it needs to generate a question or evaluate an answer, 
-  it sends ONLY the relevant source chunks and the task to 
-  the API. The API sends back the generated text.
-  
-  The student's full materials and progress data stay on 
-  their device. Only the specific chunks needed for the 
-  current task are sent — and they are generic textbook 
-  excerpts, not personal information.
-```
+**Extraction:** The AI's response is fed back through the ingestion pipeline to extract any new facts, decisions, or concepts. If the AI introduces new information, it becomes a new memory. If the AI confirms existing information, the relevant memory's strength is boosted.
 
-### Option 3: Bring Your Own API Key
-
-For students who already have an API key from a service like
-OpenAI, Anthropic, or any other provider. They enter their key,
-and the tool uses their chosen provider.
-
-```
-WHO CAN USE THIS:
-  Students who have access to paid API services.
-  Maybe through university programs, personal subscriptions, 
-  or developer accounts.
-
-HOW IT FEELS:
-  Depends on the provider. Usually 1-3 seconds per response.
-
-WHAT HAPPENS:
-  Same as Option 2, but using the student's preferred service 
-  instead of the default free one.
-```
-
-### How the Choice Is Made
-
-```
-┌──────────────────────────────────────────────────────┐
-│                                                      │
-│   FIRST TIME THE STUDENT OPENS THE APP               │
-│                                                      │
-│   "How would you like to power the AI?"              │
-│                                                      │
-│   ○ Run locally on my device                         │
-│     (requires 8GB RAM, works offline)                │
-│                                                      │
-│   ○ Use a free cloud service                         │
-│     (works on any device, needs internet)            │
-│                                                      │
-│   ○ Use my own API key                               │
-│     (I already have an account somewhere)            │
-│                                                      │
-│   "Not sure? The free cloud option works for         │
-│    everyone. You can change this anytime."           │
-│                                                      │
-└──────────────────────────────────────────────────────┘
-```
-
-The rest of the system — the knowledge map, the forgetting model,
-the quiz engine, the progress tracking — works identically
-regardless of which option the student chooses. Only the
-generation step changes.
+This creates a feedback loop: every conversation enriches the memory, and every enriched memory improves future conversations.
 
 ---
 
-## What engram Is Not
+## Layer 5: User Interface — Transparency and Control
 
-```
-IT IS NOT A REPLACEMENT FOR UNDERSTANDING.
-  It helps you study efficiently, but you still have to 
-  do the work of actually learning the material.
+### The Context Window Visualization
 
-IT IS NOT A SOURCE OF KNOWLEDGE.
-  It only knows what your notes say. If your notes are 
-  incomplete, the tool cannot help with what is missing.
+The most distinctive visual element of ContextOS is the context window visualization. It shows the user exactly what the AI currently knows, in real-time.
 
-IT IS NOT ALWAYS RIGHT.
-  It can misinterpret your notes, generate imperfect 
-  questions, or miscalculate your readiness. It is a 
-  study aid, not an oracle.
+The visualization has three sections:
 
-IT IS NOT A SHORTCUT.
-  It makes your study time more efficient by targeting 
-  your weak spots. But you still need to put in the time.
+**Active Context:** Memories currently injected into the AI's prompt. These are bright, labeled, and arranged by relevance. The user can see exactly what background the AI has before asking a question.
 
-IT IS NOT A CLOUD SERVICE.
-  Your materials and your study data stay on your device.
-  The tool is yours. Your data is yours. Nobody else 
-  can see it unless you choose to share it.
-```
+**Available Memories:** Memories that could be injected but are not — because the context window is full or they scored lower in relevance. These are shown as dimmed but accessible. The user can manually drag any available memory into active context, giving them direct control over what the AI knows.
 
----
+**Forgotten Memories:** Memories that have decayed below the critical threshold. These are shown as barely visible. The user can reactivate any of them if the topic becomes relevant again.
 
-## Why This Matters
+This visualization serves two purposes: it gives the user control over what the AI knows, and it makes the memory system transparent and trustworthy. The user never has to guess what context the AI is working with.
 
-The average student studies the same way students studied fifty
-years ago. Read notes. Highlight. Re-read. Hope for the best.
-The tools that exist today are either crude (flashcards),
-expensive (cloud AI tutors that hallucinate and have no
-personalization), or unintelligent (generic study apps with
-no real understanding of the material or the student).
+### The Memory Browser
 
-engram is different because it combines three things that
-have never been combined in a single tool:
+Beyond the context window, the user can browse their entire memory store through multiple views:
 
-```
-1. Understanding of the CONTENT
-   What the concepts are and what they mean.
+**Timeline view:** Memories ordered by when they were created or last accessed. Useful for retracing the history of a project or investigation.
 
-2. Understanding of the STRUCTURE
-   How concepts depend on each other and which ones 
-   are foundational.
+**Topic view:** Memories grouped by domain — project, personal, work, learning. Useful for seeing everything related to a specific area.
 
-3. Understanding of the STUDENT
-   What this specific person is about to forget, based 
-   on their personal learning and forgetting patterns.
-```
+**Strength view:** Memories ordered by current strength, showing what is fading and what is still strong. Useful for identifying topics that need attention before they are forgotten.
 
-All three running on the student's own device. For free.
-Privately. Available to anyone who can clone a repository
-and run two commands.
-
-A student with a five-year-old laptop and an exam tomorrow
-can have the same quality of personalized study guidance
-that would otherwise require a private tutor.
-
-That is what this project is for.
+The memory browser allows the user to search, filter, edit, and delete memories. It also surfaces patterns: "You have discussed 5 different approaches to this problem. The most recent is the current one. Want to see the history?"
 
 ---
 
-## The Core Principle
+## Key Features
 
-```
-Every project that succeeds follows one rule:
+### 1. Persistent Cross-Session Memory
+Every conversation enriches the memory store. Start a project discussion on Monday, continue on Wednesday, and the AI knows everything from Monday without you repeating it. Close the browser, restart the computer, switch devices — the memory persists in CockroachDB.
 
-Let the user start immediately.
-Process the minimum needed to begin.
-Improve quality in the background.
-Never block the user from doing what they came to do.
+### 2. Automatic Concept Extraction
+No manual tagging or explicit "remember this" required. The system automatically extracts problems, decisions, facts, entities, events, preferences, and code from every conversation using a multi-stage extraction pipeline.
 
-A student drops a book. Thirty seconds later, they are 
-studying. That is the standard. Nothing less is acceptable.
-```
+### 3. Semantic Vector Search
+Find relevant memories even when the exact words do not match. Asking "why did we change the approach?" retrieves memories about "switched from heuristic to AI extraction" because CockroachDB's distributed vector index recognizes semantic similarity.
+
+### 4. Knowledge Graph Traversal
+Memories are connected by typed relationships. When you ask about one topic, the system follows the graph edges stored in CockroachDB to find everything connected to it — causes, alternatives, prerequisites, and consequences.
+
+### 5. Exponential Decay with Forgetting Curves
+Memories naturally fade over time, simulating human forgetting. Frequently accessed memories stay strong. Neglected ones decay. The system prioritizes what you keep coming back to, just like human cognition.
+
+### 6. Relevance-Based Context Injection
+Not all memories are injected into the AI's prompt — only the most relevant ones based on a composite score of semantic similarity, memory strength, and recency. This prevents context overload and ensures the AI gets exactly what it needs.
+
+### 7. Contradiction Detection
+When new information conflicts with stored memories, the system surfaces the conflict and asks the user to resolve it. No silent overwrites, no corrupted context.
+
+### 8. Cross-Model Memory
+The memory is model-agnostic. Start a conversation with one AI, switch to another, and both have access to the same curated context. The memory is the user's, not the model's.
+
+### 9. Proactive Reminders
+When important memories decay below the critical threshold, the system proactively reminds the user. This prevents valuable knowledge from being silently forgotten.
+
+### 10. Transparent Context Control
+Users can see exactly what the AI currently knows, manually adjust the active context, drag memories in and out, and browse their entire memory history. The system is never a black box.
 
 ---
 
-## License
+## Technologies Used
 
-MIT License — free for anyone to use, modify, and distribute.
+| Component | Technology | Role in ContextOS |
+|-----------|-----------|-------------------|
+| **Persistent Memory Store** | CockroachDB Cloud | Globally distributed, always-on storage for all memory data — buckets, embeddings, relationships, and raw text. The single source of truth for everything the system remembers. |
+| **Semantic Vector Search** | CockroachDB Distributed Vector Indexing | Indexes concept embeddings for fast similarity search. Enables the system to find conceptually related memories even when exact words differ. Scales as the memory store grows. |
+| **Agent-Database Communication** | CockroachDB MCP Server | Model Context Protocol server providing a standardized, secure connection between the AI agent and CockroachDB. Enables the agent to read and write memories with full audit logging. |
+| **Database Operations** | CockroachDB Agent Skills Repo | Machine-executable skills encoding CockroachDB best practices for query optimization, schema design, and performance tuning. Used by the agent to interact with the database efficiently. |
+| **AI Model** | Amazon Bedrock (Anthropic Claude) | Powers the AI agent that the user interacts with. Also used for concept extraction validation and enrichment during ingestion. |
+| **Vector Embeddings** | Amazon Bedrock (Amazon Titan Embeddings) | Generates 1536-dimensional vector embeddings for every extracted concept and every user query. These embeddings are stored in CockroachDB's vector index. |
+| **Serverless Compute** | AWS Lambda | Runs the agent loop, ingestion pipeline, retrieval engine, and context injection engine. Provides automatic scaling and pay-per-invocation pricing with zero server management. |
+| **Document Storage** | Amazon S3 | Stores uploaded documents, raw conversation exports, and cold storage backups before and after they enter the ingestion pipeline. |
+| **NLP Processing** | spaCy + RAKE | Linguistic analysis for noun chunk extraction, entity recognition, and statistical phrase extraction during the first stages of concept extraction. |
+| **Frontend** | React + TypeScript | User interface providing the chat interface, context window visualization, and memory browser. |
 
+---
+
+## How CockroachDB Powers the Memory Layer
+
+ContextOS uses CockroachDB as its sole persistent memory layer. Every memory the system has ever formed — every concept, every relationship, every embedding, every raw text chunk — lives in CockroachDB. Here is how each CockroachDB capability maps to a ContextOS requirement:
+
+### Distributed Vector Indexing for Semantic Search
+
+Every extracted concept gets a vector embedding generated by Amazon Titan Embeddings through Bedrock. These embeddings are stored in CockroachDB with a distributed vector index. When the user asks a question, the query is embedded using the same model and searched against the index using cosine distance. This finds the most semantically similar memories across the entire store.
+
+The distributed nature of the index means that search performance scales as the memory grows. Whether the user has 100 memories or 100,000, the vector search remains fast. Because the embeddings live in the same database as the structured data, there is no synchronization lag between the vector index and the operational records. A concept that was just extracted and stored is immediately available for semantic search.
+
+### Structured SQL for Complex Retrieval
+
+The context retrieval process is not just a vector search. It requires joining across multiple data types: finding a concept by semantic similarity, then looking up its bucket metadata, then following relationship edges to connected concepts, then checking each connected concept's strength and recency. This is a multi-table join with filtering, scoring, and ordering.
+
+CockroachDB's full SQL support makes this possible in a single, optimizable query. The knowledge graph traversal becomes SQL joins across the relationships table. The relevance scoring becomes computed expressions combining vector similarity, strength, and time-since-last-access. The forgetting budget becomes a LIMIT clause with ORDER BY on the composite score.
+
+### Always-On Persistence
+
+An AI agent whose memory goes offline does not degrade gracefully — it stops being useful. CockroachDB's distributed architecture ensures that the memory layer survives node failures, region outages, and maintenance windows. The user's memories are replicated across multiple nodes, so no single failure can destroy them.
+
+This is particularly important for the proactive reminder feature. If a critical memory is approaching the forgetting threshold, the system needs to be available to surface that reminder. CockroachDB's availability guarantees ensure that memory decay tracking and reminder generation work continuously.
+
+### Scalability for Growing Memory
+
+The memory store grows with every conversation. A daily AI user might generate 10-20 new concepts per day. Over a year, that is 3,000-7,000 concepts, plus their embeddings, relationships, and raw text. Over multiple years of use, the store could contain tens of thousands of memories.
+
+CockroachDB scales horizontally by adding nodes. The memory system does not need to be re-architected when it outgrows a single machine. The vector index, the bucket store, and the relationship graph all scale together because they live in the same distributed database.
+
+### Transactional Consistency
+
+When multiple conversations are being ingested simultaneously — or when the user is querying while new memories are being written — CockroachDB's serializable transaction isolation prevents memory corruption. A concept cannot be half-written. A relationship cannot point to a bucket that does not yet exist. The memory is always in a consistent state.
+
+---
+
+## How AWS Powers the Agent Infrastructure
+
+### Amazon Bedrock: The AI Backbone
+
+Amazon Bedrock provides the AI models that ContextOS uses at two critical points:
+
+**During ingestion:** When raw text enters the system, the extraction pipeline uses Claude via Bedrock to validate and refine the concept candidates identified by the NLP tools. The AI assigns importance scores, generates definitions, resolves ambiguities, and classifies each concept by type. This is what turns noisy extraction results into clean, structured memory objects.
+
+**During interaction:** The user's primary AI interface runs through Bedrock. When the context injection engine assembles the final prompt — the context block plus the user's question — it is sent to Claude via Bedrock for response generation. The model routing is transparent; the user can select different models, and the same curated context is used regardless.
+
+Amazon Titan Embeddings, also through Bedrock, generates the vector representations for every concept and every user query. These embeddings are the foundation of the semantic search capability.
+
+### AWS Lambda: Serverless Agent Execution
+
+The entire agent loop — receiving the user's message, analyzing the query, retrieving memories from CockroachDB, scoring relevance, assembling context, calling the AI model, processing the response, and extracting new memories — runs on AWS Lambda.
+
+Lambda provides automatic scaling: if the user sends one message or a hundred messages, the system handles it without manual provisioning. It provides pay-per-invocation pricing: the system costs nothing when idle and scales cost with usage. And it provides zero server management: the team focuses on the memory logic, not infrastructure.
+
+The agent loop is decomposed into focused Lambda functions — one for ingestion, one for retrieval, one for context injection, one for response processing — each independently scalable and deployable.
+
+### Amazon S3: Document and Backup Storage
+
+Amazon S3 stores three kinds of data:
+
+**Uploaded documents:** When the user uploads a PDF, a research paper, or a code file, it is stored in S3 before being processed by the ingestion pipeline. S3 serves as the staging area for documents awaiting extraction.
+
+**Cold storage backups:** Complete memory archives — all conversations, all concepts, all relationships, all metadata — are periodically exported to S3 as structured files. These serve as backups, portability snapshots, and cross-device sync sources.
+
+**Raw conversation exports:** The original, unprocessed conversation text is stored in S3 for reprocessing. If the extraction algorithm improves, old conversations can be re-processed from their raw text without losing the original data.
+
+---
+
+## Target Users
+
+### Primary: Students
+
+Students use multiple AI tools for studying, research, and project work. Every session starts from zero. ContextOS lets them build a persistent knowledge base that grows across all their AI interactions. A student studying machine learning can discuss a concept on Monday, explore it deeper on Wednesday, and have the AI remember the full learning arc on Friday.
+
+Students benefit most because they are the least likely to have enterprise context management tools. They cannot afford expensive knowledge management platforms. They do not have engineering teams to build custom solutions. ContextOS gives them the same context continuity that only power users currently achieve through manual effort.
+
+### Secondary: Developers
+
+Developers spend significant time re-explaining codebases, architecture decisions, and project context to AI tools. ContextOS preserves this context across sessions. A developer can say "continue where we left off" and the AI actually can, because the memory layer holds the full history of the project discussion.
+
+### Tertiary: Researchers and Knowledge Workers
+
+Anyone who uses AI for ongoing research, investigation, or project management benefits from a memory system that maintains continuity across sessions and tools. Researchers exploring a topic over weeks or months get an AI that understands the full arc of their investigation, not just the current fragment.
+
+---
+
+## Real-World Impact
+
+### Democratizing AI Effectiveness
+
+The biggest impact of ContextOS is making AI more effective for people who currently get the least value from it. Power users manage context manually — they maintain notes, paste summaries, and carefully structure their prompts. Most users do not do this. They open a chat, ask a question, and start over next time.
+
+ContextOS automates what power users do manually. It extracts, organizes, and injects context without the user needing to think about it. A first-year student gets the same context continuity as a senior engineer who manually manages their AI interactions. This levels the playing field.
+
+### Saving Time That Adds Up
+
+The average user of AI tools spends 10-15 minutes per session re-explaining context. Across multiple sessions per week, that is hours of pure context management per month. ContextOS eliminates this by maintaining persistent, relevant memory. The time savings compound: the more the user interacts with AI, the more context the system has, and the less the user needs to explain.
+
+### The Compounding Effect
+
+Every conversation makes the system smarter. More conversations mean more memories. More memories mean better context injection. Better context injection means more useful AI responses. More useful responses lead to more conversations. Over time, the accumulated memory becomes more valuable than any single conversation — it is the user's entire intellectual history with AI, structured, searchable, and actively managed.
+
+A student's ContextOS after a semester of use is not just a collection of chat logs. It is a structured knowledge graph of everything they learned, every decision they made, every problem they solved, and every connection they formed. The AI can draw on this to give answers that are not just correct but personally relevant.
+
+---
+
+## What Makes This Different from Existing Approaches
+
+### vs. RAG (Retrieval-Augmented Generation)
+
+RAG retrieves text chunks from a static document store based on similarity. ContextOS manages a living, decaying, growing memory that models relevance over time. RAG retrieves everything relevant. ContextOS retrieves what matters right now, considering what is fading, what is connected, and what the user keeps coming back to. RAG treats all retrieved chunks equally. ContextOS ranks memories by a composite score of relevance, strength, and recency.
+
+### vs. Conversation History
+
+AI tools store conversation history as flat text. It is passive — the AI does not understand it, index it, or retrieve it intelligently. ContextOS extracts structured knowledge from conversations, classifies it, connects it with relationships, indexes it semantically, and retrieves it based on relevance. History is a log. Memory is a mind.
+
+### vs. Memory Features in AI Tools
+
+Some AI tools now offer memory features that store facts the user explicitly mentions. ContextOS goes further in three ways: it automatically extracts knowledge without the user asking it to, it manages memory decay and strength over time, and it works across all AI tools, not just one. The memory is the user's, portable and model-agnostic.
+
+### vs. Vector Databases
+
+Vector databases store embeddings and retrieve by similarity. ContextOS combines vector search with structured queries, knowledge graph traversal, decay modeling, and relevance scoring. It is not just "find similar things" — it is "find what matters now, considering the full context of what the user knows, what they have forgotten, and what they are likely to need."
+
+---
+
+## How the Engram Engine Powers ContextOS
+
+The memory engine at the core of ContextOS is built on a proven cognitive architecture originally designed to model how humans learn and forget concepts. Every major component of this engine transfers directly to ContextOS:
+
+| Engine Component | ContextOS Role |
+|---|---|
+| Extraction pipeline for documents | Ingestion pipeline for any text input — conversations, notes, code, documents |
+| Multi-method concept extraction | Concept extraction from conversations using linguistic analysis, statistical phrases, and AI validation |
+| Bucket system with normalized keys | Knowledge store for structured memories, with deduplication of equivalent concepts |
+| Bucket merging algorithm | Deduplication of equivalent memories across different conversations and tools |
+| Multi-head hashing for fast retrieval | Fast context retrieval during injection, providing deterministic lookup |
+| Memory decay model (exponential forgetting) | Relevance scoring and forgetting simulation over time |
+| Strength categories (strong, fading, critical) | Context priority determination and proactive reminder triggers |
+| Query matching (token overlap and prefix match) | Finding relevant memories for a given user question |
+| Definition search | Deep search through stored context text and descriptions |
+| Softmax scoring | Normalization of relevance scores for fair comparison |
+| AI-powered extraction | Both concept extraction and context relevance scoring |
+| State persistence | Memory persistence across sessions via CockroachDB |
+
+The engine was originally designed to model how a student learns and forgets concepts from documents. ContextOS generalizes this: it models how any person accumulates and forgets knowledge from any interaction with AI. The underlying cognitive model is identical. The application domain is broader. The storage backbone is CockroachDB.
+
+---
+
+## Summary
+
+ContextOS is a persistent memory architecture for AI systems, powered by CockroachDB and AWS. It transforms amnesiac AI conversations into a continuous, compounding knowledge system.
+
+The user talks. The system extracts and remembers in CockroachDB. The AI receives relevant memories via semantic vector search and knowledge graph traversal. Over time, the accumulated memory becomes more valuable than any single conversation — it is the user's entire intellectual history with AI, structured, searchable, and actively managed.
+
+The context window is not a limitation to work around. It is a resource to manage. ContextOS manages it — with persistent, always-on, globally distributed memory that never goes down, never forgets unless the user wants it to, and gets smarter with every conversation.
